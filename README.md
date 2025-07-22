@@ -24,13 +24,27 @@ A web-based application that uses YOLO models to detect QR codes and barcodes in
    git clone https://github.com/AJ125000/QR-code-and-Barcode-detection-using-Yolo.git
    cd qr-barcode-detection
    ```
+2. **Create and activate a virtual environment**
+   Create:
+   ```bash
+   python -m venv venv
+   ```
+   Activate:
+   For windows:
+   ```bash
+   venv/Scripts/activate
+   ```
+   For linux:
+   ```bash
+   source venv/bin/activate
+   ```
 
-2. **Install required dependencies**
+4. **Install required dependencies**
    ```bash
    pip install -r requirements.txt
    ```
 
-3. **Set up the directory structure**
+5. **Set up the directory structure**
    The application will automatically create necessary directories, but ensure you have:
    ```
    app/
