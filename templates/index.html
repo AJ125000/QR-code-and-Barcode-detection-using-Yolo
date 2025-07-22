@@ -1,1 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Upload UI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #00D4FF 0%, #3B82F6 100%);
+        }
+        
+        .upload-border {
+            border: 2px dashed #CBD5E1;
+            transition: all 0.3s ease;
+        }
+        
+        .upload-border:hover {
+            border-color: #00D4FF;
+        }
+        
+        .upload-border.dragover {
+            border-color: #00D4FF;
+            background-color: #F0F9FF;
+        }
 
+        .progress-bar {
+            transition: width 0.3s ease;
+        }
+
+        .file-item {
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+
+        .status-uploading { background-color: #3B82F6; }
+        .status-success { background-color: #10B981; }
+        .status-error { background-color: #EF4444; }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-2xl relative">
+        <!-- Close Button -->
+        <button id="closeBtn" class="absolute top-6 right-6 text-gray-400 hover:text-gray-600 text-2xl font-light">
+            ×
+        </button>
+
+        <!-- Header -->
+        <h2 class="text-2xl font-bold text-gray-800 mb-8">Upload Files</h2>
+
+        <!-- Main Content Container -->
+        <div class="flex gap-8">
+            <!-- Upload Area -->
+            <div class="flex-1">
+                <div id="uploadArea" class="upload-border rounded-2xl p-12 text-center">
+                    <!-- Cloud Icon -->
+                    <div class="mb-4">
+                        <svg class="mx-auto w-16 h-16 text-cyan-400" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" />
+                        </svg>
+                    </div>
+
+                    <p class="text-gray-600 mb-4">
+                        Drag files to upload<br>
+                        <span class="text-gray-400">or</span>
+                    </p>
+
+                    <button id="browseBtn" class="bg-white border-2 border-cyan-400 text-cyan-400 px-6 py-2 rounded-full hover:bg-cyan-50 transition-colors">
+                        Browse Files
+                    </button>
+
+                    <div class="mt-6 text-xs text-gray-400">
+                        <div>Max file size: <span class="font-medium">50MB</span></div>
+                        <div>Supported file types: <span class="font-medium">JPG, PNG, GIF, PDF, SVG</span></div>
+                    </div>
+                </div>
+
+                <!-- Hidden File Input -->
+                <input type="file" id="fileInput" multiple accept=".jpg,.jpeg,.png,.gif,.pdf,.svg" class="hidden">
+            </div>
+
+            <!-- File List -->
+            <div class="w-80">
+                <div id="fileList" class="space-y-3">
+                    <!-- Sample files will be added here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const browseBtn = document.getElementById('browseBtn');
+    const fileList = document.getElementById('fileList');
+    const closeBtn = document.getElementById('closeBtn');
+
+    // --- Helper Functions ---
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    // --- UI Update Functions ---
+    function createFileItem(file) {
+        const fileItem = document.createElement('div');
+        fileItem.className = 'file-item bg-gray-50 rounded-lg p-4';
+        
+        fileItem.innerHTML = `
+            <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center min-w-0">
+                    <span class="status-dot status-uploading"></span>
+                    <span class="text-sm font-medium text-gray-700 truncate" title="${file.name}">${file.name}</span>
+                </div>
+                <button class="text-gray-400 hover:text-gray-600 flex-shrink-0">×</button>
+            </div>
+            <div class="text-xs text-gray-500 mb-2">${formatFileSize(file.size)}</div>
+            <div class="w-full bg-gray-200 rounded-full h-1 mb-3">
+                <div class="progress-bar bg-blue-500 h-1 rounded-full" style="width: 0%"></div>
+            </div>
+            <div class="result-container flex items-center gap-4" style="display: none;">
+                <img class="result-image rounded border border-gray-200" style="width: 80px; height: 80px; object-fit: cover;"/>
+                <div class="result-text text-xs font-semibold"></div>
+            </div>
+        `;
+
+        const removeBtn = fileItem.querySelector('button');
+        removeBtn.addEventListener('click', () => fileItem.remove());
+        return fileItem;
+    }
+
+    // --- Helper to delete prediction image from server ---
+    function deletePredictionImage(imageUrl) {
+        // Extract filename from URL (e.g., /static/predictions/abc123.png)
+        const parts = imageUrl.split('/');
+        const filename = parts[parts.length - 1];
+        fetch('/delete_prediction', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'deleted') {
+                console.log(`Deleted prediction image: ${filename}`);
+            } else {
+                console.warn('Delete failed:', data);
+            }
+        })
+        .catch(err => console.error('Delete error:', err));
+    }    
+
+    function updateFileStatus(fileItem, status, data) {
+        const progressBar = fileItem.querySelector('.progress-bar');
+        const statusDot = fileItem.querySelector('.status-dot');
+        const resultContainer = fileItem.querySelector('.result-container');
+        const resultImage = fileItem.querySelector('.result-image');
+        const resultText = fileItem.querySelector('.result-text');
+        
+        statusDot.className = `status-dot ${status === 'success' ? 'status-success' : 'status-error'}`;
+        progressBar.parentElement.style.display = 'none'; // Hide progress bar on completion
+        
+        if (status === 'success') {
+            resultText.textContent = `${data.qr_result} | ${data.barcode_result}`;
+            resultText.className = 'result-text text-xs text-green-700 font-semibold';
+            // Set the image source from the URL provided by the backend
+            resultImage.src = data.image_url;
+            resultContainer.style.display = 'flex'; // Show the result container
+
+            // Delete the image from server after it loads
+            resultImage.onload = () => {
+                deletePredictionImage(data.image_url);
+            };
+        } else {
+            resultText.textContent = data.error || 'Upload failed.';
+            resultText.className = 'result-text text-xs text-red-500 font-semibold';
+            resultImage.style.display = 'none'; // Hide image on error
+        }
+        resultContainer.style.display = 'flex';
+    }
+
+
+
+    // --- Core Logic (no changes here) ---
+    async function uploadFile(fileItem, file) {
+        const formData = new FormData();
+        formData.append('file', file);
+        try {
+            const response = await fetch('/predict', { method: 'POST', body: formData });
+            const data = await response.json();
+            if (response.ok) {
+                updateFileStatus(fileItem, 'success', data);
+            } else {
+                updateFileStatus(fileItem, 'error', data);
+            }
+        } catch (error) {
+            console.error('Upload Error:', error);
+            updateFileStatus(fileItem, 'error', { error: 'Network or server error.' });
+        }
+    }
+
+    function handleFiles(files) {
+        Array.from(files).forEach(file => {
+            if (file.size > 50 * 1024 * 1024) {
+                alert(`File ${file.name} is too large! Max size is 50MB.`);
+                return;
+            }
+            const fileItem = createFileItem(file);
+            fileList.appendChild(fileItem);
+            uploadFile(fileItem, file);
+        });
+    }
+
+    // --- Event Listeners (no changes here) ---
+    browseBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+    uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+    uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+    uploadArea.addEventListener('drop', (e) => { e.preventDefault(); uploadArea.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
+    closeBtn.addEventListener('click', () => console.log('Close button clicked'));
+
+</script>
+</body>
+</html>
